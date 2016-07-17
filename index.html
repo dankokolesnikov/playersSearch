@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Player Search</title>
+
+	<link href="css/bootstrap.min.css" rel="stylesheet">
+	<link href="style.css" rel="stylesheet">
+	 <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+<body>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+	<script>
+	
+
+	//Фильтер вводимого текста от символов
+	function filter(text){
+		text = text.replace(/"/g, "")
+		text = text.replace(/'/g, "")
+		text = text.replace(/;/g, "")
+		text = text.replace(/:/g, "")
+		//text = text.replace(/./g, "")
+		text = text.replace(/=/g, "")
+		text = text.replace(/!/g, "")
+		text = text.replace(/_/g, "")
+		text = text.replace(/\?/g, "")
+
+		return text;
+	}
+
+	// Футер к низу
+	function checkFooter(){
+		if ($(document).height() <= $(window).height()){
+			$('.footer').addClass('navbar-fixed-bottom')
+		}
+		else{
+			$('.footer').removeClass('navbar-fixed-bottom')
+		}
+	}
+
+	$(document).ready(function(){
+		checkFooter();
+		//Отслеживаем нажатие энтер
+		$('#searchHere').keypress(function(eventObject){
+			if(eventObject.which == 13 && $('#searchHere').val()!==''){
+				
+				// Считываем и приобразовуем поле ввода
+				var inputText= $('#searchHere').val();
+				$('#searchHere').val('');
+				inputText =filter(inputText);
+				var searchArr = inputText.split(' ');
+				var searchArrLength = 0;
+				var deleteKey =0;
+				var searchDelete = [];
+				var print=[];
+
+				// Получаем содержимое json файла через парос AJAX
+				$.getJSON( "players.json", function( data ) {
+					// Перебираем всех игроков
+					for (var i=0;i<data.length;i++){
+						print[i]=0;
+						
+						// Дополнительная фильтрация вводимого текста
+						for (var key in searchArr ){
+							deleteFlag=0;
+							if (searchArr[key] == ''){
+								searchArrLength+=1;
+								continue;
+							}
+							// Отслеживаем исключения, которые вводятся с минусом
+							if (searchArr[key].indexOf("-") == 0){
+								searchDelete[key] = searchArr[key].replace("-","");
+								deleteFlag=1;
+							}
+							// Собственно отбор игроков по имени, позиции и национальности. Анализируем совпадение. Избавляемся от регистра. Статус совпадения каждого игрока записываем в массив. Если присутсвует "Исключение" игрок "удаляется".
+							var checkedName = data[i].name.split(' ');
+							for (var k=0;k<checkedName.length;k++){
+								if (checkedName[k].toUpperCase()==searchArr[key].toUpperCase()){
+						 			print[i]+=1;
+								}
+								if (deleteFlag==1) {
+									if (checkedName[k].toUpperCase()==searchDelete[key].toUpperCase()){
+							 			print[i]-=100;
+									}
+								};		
+							}
+							var checkedPosition = data[i].position.split(' ');
+							for (var k=0;k<checkedPosition.length;k++){
+								if (checkedPosition[k].toUpperCase()==searchArr[key].toUpperCase()){
+						 			print[i]+=1;
+								}
+								if (deleteFlag==1) {
+									if (checkedPosition[k].toUpperCase()==searchDelete[key].toUpperCase()){
+							 			print[i]-=100;
+									}
+								};
+							}
+							var checkedNat = data[i].nationality.split(' ');
+							for (var k=0;k<checkedNat.length;k++){
+								if (checkedNat[k].toUpperCase()==searchArr[key].toUpperCase()){
+						 			print[i]+=1;
+								}
+								if (deleteFlag==1) {
+									if (checkedNat[k].toUpperCase()==searchDelete[key].toUpperCase()){
+							 			print[i]-=100;
+									}
+								};
+							}
+						}
+					}
+					
+					// Смотрим количество "исключений"
+					if (deleteFlag==1){
+						for(var key in searchArr){
+							if(searchArr[key].indexOf('-')==0){
+								deleteKey+=1;
+							}
+						}
+					}
+
+					// Считаем количество введеных слов в поисковую строку
+					searchArrLength=searchArr.length-searchArrLength-deleteKey;;
+
+
+					$('#searchResults').html('');
+					var flag;
+					// Выводим 100% совпашийся результат с вводимым запросом
+					for (var i=0; i<data.length;i++){
+						if(print[i] == searchArrLength){
+							$('#searchResults').append('<div class="col-lg-10 col-md-10 col-sm-12 col-xs-12 col-lg-offset-1 col-md-offset-1 result"><h3>'+data[i].name+'</h3><p>Position: '+data[i].position+'; Number: '+data[i].jerseyNumber+'; Nationality: '+data[i].nationality+';</p><p>Market value: '+data[i].marketValue+'</p></div>')
+								flag=0;
+						}
+					}
+					// Поисковый запрос увенчался провалом
+					if (flag!==0){
+						$('#searchResults').append('<div class="col-lg-10 col-md-10 col-sm-12 col-xs-12 col-lg-offset-1 col-md-offset-1 result"><h3>По Вашему запросу точных совпадений не найдено</h3></div>')
+					}
+
+					sl=searchArrLength-1;
+					var flag = 0;
+					// Находим все остальные результаты по мере их совпадения с вводимыми словами
+					// Реализована сортировка по релевантности. Выводит от наиболее совпавшего к менее.
+					for (var k=sl; k>0;k--){
+						for (var i=0; i<data.length;i++){
+							if (print[i]==k && !($('#Check').prop('checked'))) {
+								if (flag == 0){
+									$('#searchResults').append('<div class="col-lg-10 col-md-10 col-sm-12 col-xs-12 col-lg-offset-1 col-md-offset-1 maybee"><h3>Возможно Вас также заинтересует:</h3></div>');
+									flag=1;
+								}	
+								$('#searchResults').append('<div class="col-lg-10 col-md-10 col-sm-12 col-xs-12 col-lg-offset-1 col-md-offset-1 result"><h3>'+data[i].name+'</h3><p>Position: '+data[i].position+'; Number: '+data[i].jerseyNumber+'; Nationality: '+data[i].nationality+';</p><p>Market value: '+data[i].marketValue+'</p></div>')
+							};
+						}
+					}
+
+					checkFooter();
+				})	
+			};
+		});	
+		
+	})
+	</script>
+
+	<!-- Begin header -->
+	<div class="container-fluid header">
+		<div class="row">
+			<div class="container">
+				<div class="col-lg-11 col-md-11 col-sm-12 col-xs-12 col-lg-offset-1 col-md-offset-1 header">
+					<a href="#"><img src="img/logo.png" alt="logo"></a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End header -->
+
+	<!-- Begin content -->
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-6 col-md-6 col-sm-8 col-xs-10 col-lg-offset-3 col-md-offset-3 col-sm-offset-2 col-xs-offset-1 search">
+				<input type="text" placeholder="Search" id="searchHere">
+			</div>
+
+		</div>
+		<div class="row" id="searchResults">
+			<!-- Результаты выводим сюда -->
+		</div>
+	</div>
+	<!-- End content -->
+
+	<!-- Begin footer -->
+	<div class="container-fluid footer">
+		<div class="row">
+			<div class="container">
+				<div class="col-lg-2 col-md-2 col-sm-2 col-xs-3 col-lg-offset-3 col-md-offset-3 col-sm-offset-3">
+					<a href="#">HELP</a>
+				</div>
+				<div class="col-lg-2 col-md-2 col-sm-2 col-xs-3">
+					<a href="#">OUR TEAM</a>
+				</div>
+				<div class="col-lg-2 col-md-2 col-sm-2 col-xs-3">
+					<a href="#">CONTACT US</a>
+				</div>
+				<div class="col-lg-2 col-md-2 col-sm-2 col-xs-3 ">
+					<input type="checkbox" id="Check">
+					<a href="#" id="s">Не показывать возможные результаты</a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End footer -->
+
+	<script src="js/bootstrap.min.js"></script>
+</body>
+</html>
